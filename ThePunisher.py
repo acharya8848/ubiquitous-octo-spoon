@@ -4,8 +4,9 @@
 # Romans 2:12
 from multiprocessing import Process
 from requests import post
+from time import sleep
 
-def main():
+def requests():
 	AUTHORIZE_URL = "https://api.3dsintegrator.com/v2/authorize"
 	REQUEST_URL = "https://api.3dsintegrator.com/v2/authenticate/browser"
 	AMEX = "376679044357470"
@@ -53,7 +54,7 @@ def main():
 
 	authentication = post(AUTHORIZE_URL, headers=auth_header)
 	authorization = authentication.headers["Authorization"]
-	print(authorization)
+	# print(authorization)
 
 	card_header = { # Working
 		"authority": "api.3dsintegrator.com",
@@ -104,9 +105,19 @@ def main():
 		"transactionForcedTimeout": "20"
 	}
 
-	for i in range(4):
+	while True:
 		transaction = post(REQUEST_URL, headers=card_header, json=card_data)
 		print(transaction.text, transaction.status_code)
+		sleep(1)
+
+def main():
+	workers = []
+	for i in range(10):
+		workers.append(Process(target=requests))
+	for worker in workers:
+		worker.start()
+	for worker in workers:
+		worker.join()
 
 if __name__ == "__main__":
 	main()
